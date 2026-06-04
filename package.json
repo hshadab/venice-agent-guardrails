@@ -1,0 +1,43 @@
+{
+  "name": "venice-agent-guardrails",
+  "version": "0.1.0",
+  "description": "Private, verifiable guardrails for Venice E2EE agents. Wraps Venice chat completions with ICME Preflight policy checks and returns a SNARK proof per action.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./venice": "./src/venice.js",
+    "./preflight": "./src/preflight.js"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "example": "node examples/basic.js",
+    "mcp": "node mcp/server.js",
+    "setup-policy": "node scripts/setup-policy.js"
+  },
+  "keywords": [
+    "venice",
+    "venice-ai",
+    "icme",
+    "preflight",
+    "guardrails",
+    "agent",
+    "tee",
+    "e2ee",
+    "attestation",
+    "zk-proof",
+    "policy",
+    "mcp"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}
