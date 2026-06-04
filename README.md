@@ -1,8 +1,8 @@
 # venice-agent-guardrails
 
-**Private, verifiable guardrails for Venice E2EE agents.**
+**Composes Venice E2EE chat with an [ICME Preflight](https://docs.icme.io) policy check — returns a verifiable proof per agent action.**
 
-Wrap a Venice chat completion with an [ICME Preflight](https://docs.icme.io) policy check and get a SNARK proof per action that anyone can verify without an API key.
+Drop-in library and MCP server. The added value is the *composition* (consensus convention, attestation nonce binding, policy-variable projection, MCP wrapping); the two underlying API clients are a means to that end.
 
 - **Inference stays private** — Venice E2EE means prompts are decrypted only inside a TDX-attested enclave. Even Venice can't read them.
 - **Policy stays private** — your rules compile to SMT-LIB and live on Preflight's side. Counterparties only see allow/deny, never the policy itself.
@@ -14,13 +14,13 @@ Wrap a Venice chat completion with an [ICME Preflight](https://docs.icme.io) pol
 
 ## What this gives you
 
-Three drop-in pieces for any Venice agent:
+Two deliverables and a worked example:
 
 | | What it is | When to use it |
 | --- | --- | --- |
-| **Library** (`src/`) | `VeniceClient`, `PreflightClient`, `Guardrails` — `import` and compose. | You're writing a Node agent and want full control. |
-| **MCP server** (`mcp/`) | Stdio MCP server exposing `venice_private_chat` and `preflight_check` tools. | You use Claude Code, Hermes, or any MCP-capable agent and want guardrails as tool calls. |
-| **Example** (`examples/basic.js`) | End-to-end demo: user request → Venice E2EE plan → Preflight check → gated action. | You want to see the pattern in 100 lines. |
+| **Library** (`src/`) — *deliverable* | `Guardrails` composes `VeniceClient` + `PreflightClient`. Implements the three-solver consensus convention and attestation nonce check. | You're writing a Node agent and want to call the composition directly. |
+| **MCP server** (`mcp/`) — *deliverable* | Stdio MCP server exposing `venice_private_chat` and `preflight_check` tools. | You use Claude Code, Hermes, or any MCP-capable agent and want guardrails as tool calls. |
+| **Example** (`examples/basic.js`) — *documentation* | Worked example showing the pattern with a simulated `send_email` side effect. Replace the side effect with your real tool. | You want to see the pattern in ~100 lines before integrating. |
 
 ---
 
@@ -167,6 +167,15 @@ There is intentionally no payment or on-chain code in this repo. The pattern is 
 
 - **Venice** — [docs.venice.ai/api-reference/api-spec](https://docs.venice.ai/api-reference/api-spec) · [TEE & E2EE guide](https://docs.venice.ai/overview/guides/tee-e2ee-models) · [E2EE launch post](https://venice.ai/blog/venice-launches-end-to-end-encrypted-ai)
 - **ICME** — [docs.icme.io](https://docs.icme.io) · [Venice AI + Preflight](https://docs.icme.io/documentation/privacy-and-data-security/venice-ai-+-preflight)
+
+## Built in Venice submission
+
+A ready-to-PR entry for [builtinvenice.ai](https://builtinvenice.ai) lives
+in [`submission/`](./submission/). Copy
+`submission/hshadab-venice-agent-guardrails.yaml` into
+`content/projects/` of a fork of
+[`veniceai/builtinvenice`](https://github.com/veniceai/builtinvenice) and
+open a PR.
 
 ## License
 

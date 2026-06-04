@@ -24,14 +24,11 @@
     "venice-ai",
     "icme",
     "preflight",
-    "guardrails",
-    "agent",
+    "privacy",
     "tee",
-    "e2ee",
-    "attestation",
-    "zk-proof",
-    "policy",
-    "mcp"
+    "agent",
+    "mcp",
+    "library"
   ],
   "license": "MIT",
   "engines": {
