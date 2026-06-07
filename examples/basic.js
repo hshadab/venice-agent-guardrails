@@ -89,6 +89,7 @@ console.log("    AR:  ", decision.detail.ar);
 console.log("    LLM: ", decision.detail.llm);
 console.log("    Result:   ", decision.allowed ? "ALLOW" : "DENY");
 console.log("    proof_id: ", decision.proofId || "(none)");
+console.log("    proof_url:", decision.proofUrl || "(none)");
 
 // --- gate the side effect on the proof ---
 console.log("\n[3] Gate");

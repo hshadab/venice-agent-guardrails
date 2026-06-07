@@ -32,21 +32,14 @@ Allow an action only when ALL of the following hold:
 Block the action if any of the above is violated. Treat missing values as fail-closed.
 `.trim();
 
-const body = {
-  policy: POLICY,
-  // Optional fields recognized by /v1/makeRules — adjust to taste.
-  name: "venice-agent-guardrails (example)",
-  description: "Generic guardrails for a Venice E2EE agent's tool calls.",
-};
-
 const res = await fetch(`${BASE}/makeRules`, {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${KEY}`,
+    "X-API-Key": KEY,
     Accept: "text/event-stream",
   },
-  body: JSON.stringify(body),
+  body: JSON.stringify({ policy: POLICY }),
 });
 
 if (!res.ok) {

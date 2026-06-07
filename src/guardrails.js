@@ -49,12 +49,14 @@ export class Guardrails {
     return {
       allowed,
       result: raw.result,
-      proofId: raw.zk_proof_id ?? null,
+      proofId: raw.proof_id ?? null,
+      proofUrl: raw.proof_url ?? null,
       checkId: raw.check_id ?? null,
       detail: {
         z3: raw.z3_result,
         ar: raw.ar_result,
         llm: raw.llm_result,
+        arDetail: raw.ar_detail,
       },
       raw,
     };

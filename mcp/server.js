@@ -164,11 +164,12 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
             {
               allowed,
               result: raw.result,
-              proof_id: raw.zk_proof_id ?? null,
+              proof_id: raw.proof_id ?? null,
+              proof_url: raw.proof_url ?? null,
               z3: raw.z3_result,
               ar: raw.ar_result,
               llm: raw.llm_result,
-              detail: raw.detail,
+              ar_detail: raw.ar_detail,
             },
             null,
             2

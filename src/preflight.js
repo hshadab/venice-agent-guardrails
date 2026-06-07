@@ -25,7 +25,8 @@ export class PreflightClient {
    * event payload, which contains the full structured result.
    *
    * Returns: { check_id, result, z3_result, ar_result, llm_result,
-   *            detail, extracted, verification_time_ms, zk_proof_id, ... }
+   *            ar_detail, detail, extracted, verification_time_ms,
+   *            proof_id, proof_url, step, ... }
    */
   async checkIt({ policyId = this.policyId, action, values }) {
     if (!policyId) throw new Error("Preflight.checkIt: policyId is required");
@@ -35,7 +36,7 @@ export class PreflightClient {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${this.apiKey}`,
+        "X-API-Key": this.apiKey,
         Accept: "text/event-stream",
       },
       body: JSON.stringify({ policy_id: policyId, action, ...(values ? { values } : {}) }),
@@ -60,7 +61,7 @@ export class PreflightClient {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${this.apiKey}`,
+        "X-API-Key": this.apiKey,
       },
       body: JSON.stringify({ policy_id: policyId, action, values }),
     });

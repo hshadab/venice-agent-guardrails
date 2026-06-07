@@ -6,7 +6,7 @@ Drop-in library and MCP server. The added value is the *composition* (consensus 
 
 - **Inference stays private** — Venice E2EE means prompts are decrypted only inside a TDX-attested enclave. Even Venice can't read them.
 - **Policy stays private** — your rules compile to SMT-LIB and live on Preflight's side. Counterparties only see allow/deny, never the policy itself.
-- **Decisions stay verifiable** — every check returns a `zk_proof_id` that any third party can verify via Preflight's public endpoint with zero API credentials.
+- **Decisions stay verifiable** — every check returns a `proof_id` (and a `proof_url` at `https://api.icme.io/v1/proof/<id>`) that any third party can verify with zero API credentials.
 
 > Reference for the composition pattern: [Venice AI + Preflight](https://docs.icme.io/documentation/privacy-and-data-security/venice-ai-+-preflight).
 

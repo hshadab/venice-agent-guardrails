@@ -29,7 +29,15 @@ export class VeniceClient {
 
   /**
    * Fetch a TEE attestation for the configured model bound to `nonce`.
-   * Caller is responsible for checking `nonce_match === true`.
+   *
+   * Returns the raw Venice attestation envelope. Notable fields:
+   *   signing_address, signing_algo, signing_public_key
+   *   request_nonce       — the nonce echoed back; compare to what you sent
+   *   intel_quote / quote — Intel TDX quote
+   *   nvidia_payload      — NVIDIA confidential-compute payload
+   *   verified            — Venice-side verification boolean
+   *   server_verification — per-check booleans (tdx.valid, certificateChainValid, ...)
+   *   tee_provider, tee_hardware, model, upstream_model
    */
   async getAttestation(nonce) {
     const url = `${this.baseUrl}/tee/attestation?model=${encodeURIComponent(this.model)}&nonce=${nonce}`;
@@ -73,13 +81,18 @@ export class VeniceClient {
 
   /**
    * Convenience: attest, chat, return the agent-relevant subset.
-   * Throws if the returned attestation nonce does not match what we sent.
+   * Throws if the returned `request_nonce` does not match what we sent
+   * (replay protection) or if Venice's own `verified` flag is false.
    */
   async attestedChat({ messages, temperature, maxTokens, extra }) {
     const nonce = this.newNonce();
     const attestation = await this.getAttestation(nonce);
-    if (attestation?.nonce_match !== true) {
-      throw new Error("Venice attestation: nonce_match is not true (possible replay)");
+    const nonceMatch = attestation?.request_nonce === nonce;
+    if (!nonceMatch) {
+      throw new Error("Venice attestation: request_nonce does not match (possible replay)");
+    }
+    if (attestation?.verified === false) {
+      throw new Error("Venice attestation: server reported verified=false");
     }
     const completion = await this.chat({ messages, temperature, maxTokens, extra });
     return {
@@ -88,9 +101,16 @@ export class VeniceClient {
       requestId: completion?.id,
       attestation: {
         signingAddress: attestation.signing_address,
-        nonceMatch: attestation.nonce_match,
-        intelTdxQuote: attestation.intel_tdx_quote,
+        signingAlgo: attestation.signing_algo,
+        signingPublicKey: attestation.signing_public_key,
+        verified: attestation.verified,
+        nonceMatch,
+        teeProvider: attestation.tee_provider,
+        teeHardware: attestation.tee_hardware,
+        upstreamModel: attestation.upstream_model,
+        intelQuote: attestation.intel_quote ?? attestation.quote,
         nvidiaPayload: attestation.nvidia_payload,
+        serverVerification: attestation.server_verification,
         nonce,
       },
       raw: completion,
