@@ -12,6 +12,9 @@ export default [
         AbortController: "readonly",
         setTimeout: "readonly",
         clearTimeout: "readonly",
+        TextEncoder: "readonly",
+        TextDecoder: "readonly",
+        Buffer: "readonly",
       },
     },
     rules: {

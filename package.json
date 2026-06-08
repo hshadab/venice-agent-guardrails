@@ -52,7 +52,9 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@noble/curves": "^2.2.0",
+    "@noble/hashes": "^2.2.0"
   },
   "devDependencies": {
     "eslint": "^9.0.0"
