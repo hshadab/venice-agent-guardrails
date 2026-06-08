@@ -36,6 +36,30 @@ const preflight = new PreflightClient({
 });
 const guardrails = new Guardrails({ venice, preflight });
 
+const ALLOWED_DOMAINS = ["partner-corp.com", "trusted-vendor.io"];
+
+const SYSTEM_PROMPT = `
+You are an agent that decides which tool to call to satisfy the user.
+Reply with a single JSON object on ONE LINE matching:
+{"tool":"send_email"|"noop","recipient":"<email>","subject":"<string>","body":"<string>","containsPII":<boolean>}
+Rules:
+- Output MUST be parseable by JSON.parse.
+- No markdown fences, no prose, no comments.
+- Use \\n (escaped) for newlines inside string values. Never raw newlines.
+- Keep body under 200 characters.
+`.trim();
+
+function domainOf(email) {
+  return String(email || "").split("@")[1] || "";
+}
+
+function safeParseJson(s) {
+  if (!s) return null;
+  // Strip markdown fences if the model included them.
+  const cleaned = s.replace(/^```(?:json)?/i, "").replace(/```\s*$/i, "").trim();
+  try { return JSON.parse(cleaned); } catch { return null; }
+}
+
 // --- the user request ---
 const userRequest = "Email a project summary to alice@partner-corp.com. Don't include any customer PII.";
 
@@ -100,24 +124,3 @@ if (!decision.allowed) {
 console.log(`    Allowed. Would now call ${plan.tool}(${JSON.stringify(plan)})`);
 console.log(`    Attach proof_id=${decision.proofId} to your audit log.`);
 
-// --- helpers ---
-
-const ALLOWED_DOMAINS = ["partner-corp.com", "trusted-vendor.io"];
-
-function domainOf(email) {
-  return String(email || "").split("@")[1] || "";
-}
-
-function safeParseJson(s) {
-  if (!s) return null;
-  // Strip markdown fences if the model included them.
-  const cleaned = s.replace(/^```(?:json)?/i, "").replace(/```\s*$/i, "").trim();
-  try { return JSON.parse(cleaned); } catch { return null; }
-}
-
-const SYSTEM_PROMPT = `
-You are an agent that decides which tool to call to satisfy the user.
-Reply ONLY with a JSON object of the form:
-{ "tool": "send_email" | "noop", "recipient": "<email>", "subject": "<string>", "body": "<string>", "containsPII": <boolean> }
-Do not include any prose, markdown, or explanation. JSON only.
-`.trim();

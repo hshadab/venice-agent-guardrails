@@ -1,8 +1,11 @@
 // ICME Preflight client.
 //
-// Two endpoints used here:
-//   POST /v1/checkIt   — three-solver check with LLM extraction; returns zk_proof_id (SSE).
-//   POST /v1/verify    — structured-values check, no LLM extraction; returns SAT/BLOCKED.
+// Endpoint used here:
+//   POST /v1/checkIt      — three-solver check with LLM extraction; returns
+//                            proof_id + proof_url (SSE stream).
+//
+// Third parties (anyone, no API key) can later verify the returned proof_id by
+//   POST /v1/verifyProof   { "proof_id": "..." }   (single-use)
 //
 // References:
 //   https://docs.icme.io
@@ -19,7 +22,7 @@ export class PreflightClient {
   }
 
   /**
-   * Three-solver check (Z3 + Automated Reasoning + LLM) with zk_proof_id.
+   * Three-solver check (Z3 + Automated Reasoning + LLM) with proof_id.
    *
    * The endpoint streams SSE; we buffer the stream and return the final
    * event payload, which contains the full structured result.
@@ -49,24 +52,20 @@ export class PreflightClient {
   }
 
   /**
-   * Structured-values check. Cheaper, deterministic, no LLM extraction.
-   * Use this in hot paths where the agent already has the policy variables
-   * computed and you don't need the zk_proof_id.
+   * Public, single-use verification of a previously-issued proof_id.
+   * Requires NO API key. The first caller consumes the proof.
    *
-   * Returns: { check_id, action: "BLOCKED" | "SAT" }
+   * Returns: { proof_id, policy_id, policy_hash, result, valid, used, verify_ms, ... }
    */
-  async verify({ policyId = this.policyId, action, values }) {
-    if (!policyId) throw new Error("Preflight.verify: policyId is required");
-    const res = await fetch(`${this.baseUrl}/verify`, {
+  static async verifyProof(proofId, { baseUrl = DEFAULT_BASE_URL } = {}) {
+    const url = `${baseUrl.replace(/\/+$/, "")}/verifyProof`;
+    const res = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": this.apiKey,
-      },
-      body: JSON.stringify({ policy_id: policyId, action, values }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proof_id: proofId }),
     });
     if (!res.ok) {
-      throw new Error(`Preflight verify failed: ${res.status} ${await res.text()}`);
+      throw new Error(`Preflight verifyProof failed: ${res.status} ${await res.text()}`);
     }
     return res.json();
   }

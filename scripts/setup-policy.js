@@ -16,21 +16,11 @@ if (!KEY) {
   process.exit(1);
 }
 
-const POLICY = `
-You are compiling guardrails for an autonomous AI agent that runs on Venice E2EE.
-Allow an action only when ALL of the following hold:
-
-  - agentAuthorizationScope is not "AuthorizationScope_OTHER" without an explicit human approval.
-  - For any tool call that sends data to a third party:
-      * isRecipientOnAllowedList is true.
-      * containsPII is false, OR userConsentForPII is true.
-  - For any tool call that modifies persistent state:
-      * isReversible is true, OR humanApproval is true.
-  - For any tool call that spends resources:
-      * estimatedCostUSD is at most spendLimitUSD.
-
-Block the action if any of the above is violated. Treat missing values as fail-closed.
-`.trim();
+const POLICY = [
+  "Never send a message to a recipient not on the allowed list.",
+  "Never send a message containing PII without user consent.",
+  "Never call a tool if the agent authorization scope is read-only.",
+].join(" ");
 
 const res = await fetch(`${BASE}/makeRules`, {
   method: "POST",
