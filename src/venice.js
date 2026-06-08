@@ -12,17 +12,29 @@
 import { randomBytes } from "node:crypto";
 import { fetchWithTimeout, DEFAULT_TIMEOUT_MS } from "./http.js";
 import { verifyCompletionSignature } from "./signature.js";
+import { parseSseJsonEvents } from "./sse.js";
+import { generateKeyPair, encryptMessage, decryptChunk, isHexEncrypted } from "./e2ee.js";
 
 const DEFAULT_BASE_URL = "https://api.venice.ai/api/v1";
 const DEFAULT_MODEL = "e2ee-venice-uncensored-24b-p";
 
 export class VeniceClient {
-  constructor({ apiKey, baseUrl = DEFAULT_BASE_URL, model = DEFAULT_MODEL, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  /**
+   * @param {object} opts
+   * @param {string} opts.apiKey
+   * @param {string} [opts.baseUrl]
+   * @param {string} [opts.model]
+   * @param {number} [opts.timeoutMs]
+   * @param {boolean} [opts.e2ee]  Force client-side E2EE on/off. Defaults to
+   *   auto-detect: true for models whose id starts with `e2ee-`.
+   */
+  constructor({ apiKey, baseUrl = DEFAULT_BASE_URL, model = DEFAULT_MODEL, timeoutMs = DEFAULT_TIMEOUT_MS, e2ee } = {}) {
     if (!apiKey) throw new Error("VeniceClient: apiKey is required");
     this.apiKey = apiKey;
     this.baseUrl = baseUrl.replace(/\/+$/, "");
     this.model = model;
     this.timeoutMs = timeoutMs;
+    this.e2ee = e2ee ?? /^e2ee-/.test(model);
   }
 
   /** Generate a fresh 32-byte hex nonce for attestation binding. */
@@ -63,36 +75,125 @@ export class VeniceClient {
    * the message content yourself if you need it.
    */
   async chat(opts) {
-    const { completion } = await this._chat(opts);
+    // For E2EE models we need the model's public key, which only comes from an
+    // attestation. Fetch one (binding-enforced) and run the encrypted exchange.
+    const e2ee = this.e2ee ? await this._e2eeContextFromFreshAttestation() : null;
+    const { completion } = await this._chat({ ...opts, e2ee });
     return completion;
   }
 
-  /** Internal: chat that also surfaces the inline TEE signature header. */
-  async _chat({ messages, temperature, maxTokens, extra = {} }) {
+  /**
+   * Fetch a fresh attestation (enforcing nonce echo + verified=true) and build
+   * the E2EE context (model public key + per-session key pair). Used by the
+   * standalone {@link chat} path; {@link attestedChat} builds the context from
+   * the attestation it already fetched.
+   */
+  async _e2eeContextFromFreshAttestation() {
+    const nonce = this.newNonce();
+    const attestation = await this.getAttestation(nonce);
+    const echoedNonce = attestation?.request_nonce ?? attestation?.nonce;
+    if (echoedNonce !== nonce) {
+      throw new Error("Venice attestation: nonce does not match (possible replay)");
+    }
+    if (attestation?.verified !== true) {
+      throw new Error("Venice attestation: server did not report verified=true (fail-closed)");
+    }
+    return this._buildE2eeContext(attestation);
+  }
+
+  /**
+   * Build the per-call E2EE context from an attestation: the model's TEE public
+   * key (used to encrypt outgoing messages) and a fresh session key pair (whose
+   * public key the enclave uses to encrypt the streamed response).
+   */
+  _buildE2eeContext(attestation) {
+    const modelPublicKeyHex = attestation?.signing_key ?? attestation?.signing_public_key;
+    if (!modelPublicKeyHex) {
+      throw new Error("Venice E2EE: attestation has no model public key (signing_key)");
+    }
+    return { modelPublicKeyHex, session: generateKeyPair() };
+  }
+
+  /**
+   * Internal: chat that also surfaces the inline TEE signature header.
+   *
+   * When `e2ee` is provided, each message's string content is encrypted to the
+   * model public key, the X-Venice-TEE-* headers are set, the request streams,
+   * and each encrypted SSE delta is decrypted with the session key. The result
+   * is reassembled into an OpenAI-shaped completion so callers are unaffected.
+   */
+  async _chat({ messages, temperature, maxTokens, extra = {}, e2ee = null }) {
+    const outMessages = e2ee
+      ? messages.map((m) =>
+          typeof m.content === "string"
+            ? { ...m, content: encryptMessage(m.content, e2ee.modelPublicKeyHex) }
+            : m
+        )
+      : messages;
+
     const body = {
       model: this.model,
-      messages,
+      messages: outMessages,
       ...(temperature !== undefined ? { temperature } : {}),
       ...(maxTokens !== undefined ? { max_tokens: maxTokens } : {}),
+      ...(e2ee ? { stream: true } : {}),
       ...extra,
     };
+
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${this.apiKey}`,
+    };
+    if (e2ee) {
+      headers["X-Venice-TEE-Client-Pub-Key"] = e2ee.session.publicKeyHex;
+      headers["X-Venice-TEE-Model-Pub-Key"] = e2ee.modelPublicKeyHex;
+      headers["X-Venice-TEE-Signing-Algo"] = "ecdsa";
+    }
+
     const res = await fetchWithTimeout(
       `${this.baseUrl}/chat/completions`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify(body),
-      },
+      { method: "POST", headers, body: JSON.stringify(body) },
       this.timeoutMs
     );
     if (!res.ok) {
       throw new Error(`Venice chat failed: ${res.status} ${await res.text()}`);
     }
     const signatureHeader = res.headers.get("x-venice-tee-signature") || null;
+
+    if (e2ee) {
+      const completion = this._decryptStream(await res.text(), e2ee.session.privateKey);
+      return { completion, signatureHeader };
+    }
     return { completion: await res.json(), signatureHeader };
+  }
+
+  /**
+   * Reassemble a streamed E2EE response into an OpenAI-shaped completion,
+   * decrypting each `delta.content` chunk with the session private key.
+   */
+  _decryptStream(bodyText, sessionPrivateKey) {
+    const events = parseSseJsonEvents(bodyText);
+    let id;
+    let role = "assistant";
+    let finishReason = null;
+    const parts = [];
+    for (const ev of events) {
+      if (ev?.id) id = ev.id;
+      const choice = ev?.choices?.[0];
+      const delta = choice?.delta ?? {};
+      if (delta.role) role = delta.role;
+      if (choice?.finish_reason) finishReason = choice.finish_reason;
+      const chunk = delta.content;
+      if (typeof chunk === "string" && chunk.length) {
+        parts.push(isHexEncrypted(chunk) ? decryptChunk(chunk, sessionPrivateKey) : chunk);
+      }
+    }
+    return {
+      id,
+      model: this.model,
+      choices: [{ index: 0, message: { role, content: parts.join("") }, finish_reason: finishReason }],
+      _e2ee: true,
+    };
   }
 
   /**
@@ -152,7 +253,8 @@ export class VeniceClient {
       throw new Error("Venice attestation: server did not report verified=true (fail-closed)");
     }
     const signingAddress = attestation.signing_address;
-    const { completion } = await this._chat({ messages, temperature, maxTokens, extra });
+    const e2ee = this.e2ee ? this._buildE2eeContext(attestation) : null;
+    const { completion } = await this._chat({ messages, temperature, maxTokens, extra, e2ee });
 
     let signatureVerified = false;
     let signedText = null;
@@ -183,6 +285,7 @@ export class VeniceClient {
         nonceMatch,
         signatureVerified,
         signedText,
+        e2ee: this.e2ee,
         teeProvider: attestation.tee_provider,
         teeHardware: attestation.tee_hardware,
         upstreamModel: attestation.upstream_model,

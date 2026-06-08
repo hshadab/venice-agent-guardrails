@@ -246,7 +246,7 @@ Translated: at policy-compile time and at each check, ICME's server processes yo
 
 JOLT Atlas zkML (above) is the planned upgrade that closes this boundary.
 
-For the inference half, Venice E2EE + TDX attestation means the prompt is plaintext only inside the attested enclave; the model host (Venice), the GPU operator (Phala), and any network observer see only ciphertext. The attestation nonce binding (handled in `VeniceClient.attestedChat`) prevents replayed enclave quotes.
+For the inference half, Venice E2EE + TDX attestation means the prompt is plaintext only inside the attested enclave; the model host (Venice), the GPU operator (Phala), and any network observer see only ciphertext. For any `e2ee-*` model the client encrypts each message to the enclave's public key before it leaves the process and decrypts the streamed response locally (secp256k1 ECDH → HKDF-SHA256 → AES-256-GCM, per `src/e2ee.js`); the enclave public key comes from the attestation, so the encryption target is the same enclave the nonce binding pins. The attestation nonce binding (handled in `VeniceClient.attestedChat`) prevents replayed enclave quotes.
 
 By default the attestation and the chat completion are two independent requests, and the client checks the nonce echo plus Venice's own `verified=true` flag (fail-closed: anything other than `true` is rejected) — i.e. "the endpoint attested itself."
 
@@ -267,6 +267,7 @@ Still out of scope: full client-side Intel TDX quote verification against Intel 
 | Component | Status |
 | --- | --- |
 | Venice E2EE chat completion | **Real**. Live `POST /v1/chat/completions` against an `supportsE2EE: true` model. |
+| Client-side E2EE encryption | **Real**. For `e2ee-*` models the client encrypts each message to the enclave key and decrypts the streamed reply itself (secp256k1 ECDH + HKDF-SHA256 + AES-256-GCM, `src/e2ee.js`); round-trip and tamper/wrong-key rejection are unit-tested in `test/e2ee.test.js`. |
 | Venice TDX attestation | **Real**. `GET /v1/tee/attestation` with on-request nonce binding; client checks nonce echo + `verified=true` (fail-closed). |
 | Venice response-signature binding | **Real, opt-in**. `attestedChat({ verifySignature: true })` recovers the EIP-191 signer of the completion and requires it to equal the attested `signing_address`. Recovery is unit-tested against Venice's published vector. Full client-side TDX-quote parsing remains out of scope (see [Trust boundary](#trust-boundary)). |
 | ICME policy compilation | **Real**. `POST /v1/makeRules` returns a real `policy_id`. |
