@@ -1,12 +1,12 @@
 # venice-agent-guardrails
 
-**Composes Venice E2EE chat with an [ICME Preflight](https://docs.icme.io) policy check — returns a verifiable proof per agent action.**
+**Composes Venice E2EE chat with a privacy-preserving [ICME Preflight](https://docs.icme.io) policy check — returns a verifiable proof per agent action without revealing the action or the policy.**
 
 Drop-in library and MCP server. The added value is the *composition* (consensus convention, attestation nonce binding, policy-variable projection, MCP wrapping); the two underlying API clients are a means to that end.
 
 ---
 
-## What this is, in plain English
+## Overview
 
 You're building an AI agent. The agent reads requests, decides what tool to call, and then does something: sends an email, makes a payment, files a ticket, runs a script.
 
