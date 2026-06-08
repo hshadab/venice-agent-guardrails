@@ -9,15 +9,23 @@
     "./venice": "./src/venice.js",
     "./preflight": "./src/preflight.js"
   },
+  "bin": {
+    "venice-guardrails-mcp": "mcp/server.js"
+  },
   "files": [
     "src",
+    "mcp",
+    "examples",
+    "scripts",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "example": "node examples/basic.js",
     "mcp": "node mcp/server.js",
-    "setup-policy": "node scripts/setup-policy.js"
+    "setup-policy": "node scripts/setup-policy.js",
+    "test": "node --test",
+    "lint": "eslint ."
   },
   "keywords": [
     "venice",
@@ -31,10 +39,22 @@
     "library"
   ],
   "license": "MIT",
+  "author": "hshadab",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hshadab/venice-agent-guardrails.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hshadab/venice-agent-guardrails/issues"
+  },
+  "homepage": "https://github.com/hshadab/venice-agent-guardrails#readme",
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0"
   }
 }

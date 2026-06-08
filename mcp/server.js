@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // MCP server exposing the guardrails as tools to any MCP-compatible agent
 // (Claude Code, Hermes, etc.).
 //

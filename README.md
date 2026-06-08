@@ -248,6 +248,8 @@ JOLT Atlas zkML (above) is the planned upgrade that closes this boundary.
 
 For the inference half, Venice E2EE + TDX attestation means the prompt is plaintext only inside the attested enclave; the model host (Venice), the GPU operator (Phala), and any network observer see only ciphertext. The attestation nonce binding (handled in `VeniceClient.attestedChat`) prevents replayed enclave quotes.
 
+One caveat worth stating plainly: the attestation and the chat completion are two independent requests, and the client checks the nonce echo plus Venice's own `verified=true` flag (fail-closed: anything other than `true` is rejected). It does **not** itself verify the Intel TDX quote against Intel collateral, nor verify a signature by `signing_address` over the returned completion — so today this is "the endpoint attested itself", not "this specific response is provably from the attested enclave". `attestedChat` surfaces `signingAddress` / `signingPublicKey` / `intelQuote` so a caller who needs that stronger property can verify it out of band.
+
 ---
 
 ## What's real vs. simulated
@@ -255,7 +257,7 @@ For the inference half, Venice E2EE + TDX attestation means the prompt is plaint
 | Component | Status |
 | --- | --- |
 | Venice E2EE chat completion | **Real**. Live `POST /v1/chat/completions` against an `supportsE2EE: true` model. |
-| Venice TDX attestation | **Real**. `GET /v1/tee/attestation` with on-request nonce binding, verified client-side. |
+| Venice TDX attestation | **Real**. `GET /v1/tee/attestation` with on-request nonce binding; client checks nonce echo + `verified=true` (fail-closed). Full client-side TDX-quote verification and response-signature binding are out of scope (see [Trust boundary](#trust-boundary)). |
 | ICME policy compilation | **Real**. `POST /v1/makeRules` returns a real `policy_id`. |
 | ICME three-solver check | **Real**. `POST /v1/checkIt` runs Z3, AR, and LLM; returns real `proof_id` + `proof_url`. |
 | ICME public proof verification | **Real**. `POST /v1/verifyProof` verifies `proof_id` with no API key (single-use). |

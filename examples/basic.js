@@ -55,8 +55,14 @@ function domainOf(email) {
 
 function safeParseJson(s) {
   if (!s) return null;
-  // Strip markdown fences if the model included them.
-  const cleaned = s.replace(/^```(?:json)?/i, "").replace(/```\s*$/i, "").trim();
+  let cleaned = String(s).trim();
+  // Strip any markdown fences the model may have wrapped the JSON in.
+  cleaned = cleaned.replace(/```(?:json)?/gi, "").trim();
+  // Fall back to the first {...} block if there is surrounding prose.
+  if (!cleaned.startsWith("{")) {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) cleaned = match[0];
+  }
   try { return JSON.parse(cleaned); } catch { return null; }
 }
 
@@ -90,7 +96,7 @@ const values = {
   isRecipientOnAllowedList: ALLOWED_DOMAINS.includes(domainOf(plan.recipient)),
   containsPII: !!plan.containsPII,
   userConsentForPII: false,
-  isReversible: plan.tool === "send_email", // emails are not really reversible — set false in prod
+  isReversible: false, // sending an email is not reversible
   humanApproval: false,
   estimatedCostUSD: 0,
   spendLimitUSD: 0,

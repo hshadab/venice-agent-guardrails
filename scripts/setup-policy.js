@@ -8,6 +8,9 @@
 //
 // Paste the printed policy_id into your .env as ICME_POLICY_ID.
 
+import { fetchWithTimeout } from "../src/http.js";
+import { parseSseJsonEvents } from "../src/sse.js";
+
 const BASE = (process.env.ICME_BASE_URL || "https://api.icme.io/v1").replace(/\/+$/, "");
 const KEY = process.env.ICME_API_KEY;
 
@@ -22,7 +25,7 @@ const POLICY = [
   "Never call a tool if the agent authorization scope is read-only.",
 ].join(" ");
 
-const res = await fetch(`${BASE}/makeRules`, {
+const res = await fetchWithTimeout(`${BASE}/makeRules`, {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -40,20 +43,11 @@ if (!res.ok) {
 
 const text = await res.text();
 
-// Pull the policy_id out of the SSE stream.
+// Pull the policy_id out of the SSE stream (scan newest-first).
 let policyId = null;
-for (const evt of text.split(/\n\n+/).map((e) => e.trim()).filter(Boolean).reverse()) {
-  const data = evt
-    .split("\n")
-    .filter((l) => l.startsWith("data:"))
-    .map((l) => l.slice(5).trim())
-    .join("\n");
-  if (!data || data === "[DONE]") continue;
-  try {
-    const obj = JSON.parse(data);
-    if (obj.policy_id) { policyId = obj.policy_id; break; }
-    if (obj.id) { policyId = obj.id; break; }
-  } catch { /* keep scanning */ }
+for (const obj of parseSseJsonEvents(text).reverse()) {
+  if (obj.policy_id) { policyId = obj.policy_id; break; }
+  if (obj.id) { policyId = obj.id; break; }
 }
 
 if (!policyId) {
